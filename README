@@ -1,0 +1,136 @@
+# BookmarkletHelper #
+
+
+This is a CakePHP helper to add a "Post it!" bookmarklet in your view.
+You know, those nice javascript you can add to the browser's bookmarks bar;
+the user can submit a selected portion of any webpage, along with the original title and url
+to an action in your cakephp app (to save it, pre-fill a form, and so on)
+ 
+
+version 0.1.0
+
+requirements: PHP5 / CakePhp 2.0
+(should be easy to convert it to cakephp 1.3)
+
+http://stefanomanfredini.info/2012/04/cakephp-2-0-bookmarklet-helper/
+
+MIT License (http://www.opensource.org/licenses/mit-license.php)
+
+
+## Features ##
+Renders a "Post it!" link, with the needed javascript, to grab content form webpages
+(selected html or plain text, plus page Title and url)
+
+
+
+## Usage: ##
+1] (as a plugin in your app/Plugin directory or in CAKEROOT/plugins) load the plugin:
+    in app/config/bootsrap.php add
+    CakePlugin::load('Bookmarklet');
+    (or CakePlugin::loadAll();)
+
+    include the helper in your controller (or in AppController if needed everywhere in your app) as usual;
+    public $helpers = array([your helpers ...],'Bookmarklet.Bookmarklet');
+
+    or simply copy the helper file in your app/View/Helper folder amd include it
+    public $helpers = array([your helpers ...],'Bookmarklet');
+
+
+
+2] Optionally set your default options in your config file or in bootstrap.php:
+
+   $config['Bookmarklet'] = array(
+       'title' => "drag this to your browser's bookmarks bar",
+       'text'  => 'Post it!', //text displayed
+       'class' => null, //css class to style the link
+       'destination' => array('controller' => 'posts','action' => 'bookmarklet'), //HtmlHelper::link() compatible target url - array or string
+       
+       'html_version' => true // if false grab only the selected (plain) text, default grab the selected portion as original html
+    );
+  
+   Configure::write('Bookmarklet',$config['Bookmarklet']);
+
+3] in your view / element, call render() method with custom options (overriding the dafault ones) as needed
+
+echo $this->Bookmarklet->render($options);
+
+You'll probably need to restrict access to the receiving action - only authenticated/authorized users should be able to post something.
+If you lose the session when coming back from another domain/host, first of all check your session and security settings in app/Config/core.php
+
+Done.
+Well, write something to tell your users how to use it, and write your receiving action..
+Example:
+PostsController.php
+<?php
+/**
+ * just an example 
+ */
+class PostsController extends AppController {
+    
+    public $helpers = array('Bookmarklet.Bookmarklet');
+    
+    function beforeFilter() {
+        parent::beforeFilter();
+        $this->Auth->allow('dashboard'); 
+    }
+
+    
+    public function dashboard(){
+        //just rendering the view with the 
+    }
+
+    //get the data and manage it
+    public function bookmarklet () {            
+        
+            if(!$this->Auth->loggedIn()) {
+                //do your authorization check..
+                //
+
+                $this->Session->setFlash('No no no! You should be authenticated before using the bookmarklet!');
+                $this->redirect('/');
+            }
+     
+            $data['Post']['title'] = $title = $this->request->query['title'];
+            $intro = $this->request->query['intro'];
+            $link = $this->request->query['link'];
+            $url_parsed = parse_url($link);
+            $domain = 'http://'.$url_parsed['host'];                                  
+            
+            //assure images and links have absolute urls
+            $intro = preg_replace("#(<\s*a\s+[^>]*href\s*=\s*[\"'])(?!http)([^\"'>]+)([\"'>]+)#", '$1'.$domain.'/$2$3', $intro);
+            $intro = preg_replace("#(<\s*img\s+[^>]*src\s*=\s*[\"'])(?!http)([^\"'>]+)([\"'>]+)#", '$1'.$domain.'/$2$3', $intro);
+            $data['Post']['body'] = '<p><strong>[Original post:<em>< a href="'.$link.'">'.$title.'</a></em>]</strong></p>';
+            $data['Post']['body'] .= $intro;
+            $data['Post']['body'] .= '<p><strong>[View whole (original) post: <em><a href="'.$link.'">'.$title.'</a></em>]</strong></p>';
+                        
+            //$data['Content']['summary'] .= $truncated;
+            //$data['Content']['whole_content'] = $content;  
+            
+            //just using debug to display collected data
+            debug($data);            
+            $this->render('dashboard');
+            
+            /**
+             * do what you need with the data, instead
+             * i.e. Sanitize and save;
+             * call an action to rendere a pre-filled add form;
+             * etc.
+             */           
+            
+        }
+    
+    
+    
+}
+?>
+
+View/Posts/dashboard.ctp
+<?php
+echo "drag/save to your bookmarks. Clicking it while you are logged in submits the title, web address and selected text/images etc. to this site <br />";
+$this->Bookmarklet->render(array('title' => 'Post it'));
+
+echo '<br / > or: <br/>';
+
+$this->Bookmarklet->render(array('title' => 'Post it, plain text', 'html_version' => false));
+
+?>
